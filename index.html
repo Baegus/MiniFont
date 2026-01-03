@@ -580,17 +580,30 @@
 		}
 	});
 
+	function matchInputWithPreset() {
+		let matchedPreset = "";
+		for (const [name, value] of Object.entries(presets)) {
+			if (keptCharsInput.value !== value) continue;
+			matchedPreset = name;
+			break;
+		}
+		if (matchedPreset) {
+			presetSelect.value = matchedPreset;
+			previousPreset = matchedPreset;
+		} else {
+			if (presetSelect.value !== "") {
+				previousPreset = "";
+			}
+			presetSelect.value = "";
+		}
+	}
+	matchInputWithPreset();
+
+
 	// Recalculate on Input Change (Debounced)
 	keptCharsInput.addEventListener("input", () => {
-		if (presetSelect.value === "") {
-			customKeptChars = keptCharsInput.value;
-		} else {
-			// User edited a preset -> switch to "No preset"
-			previousPreset = "";
-			presetSelect.value = "";
-			customKeptChars = keptCharsInput.value;
-		}
-
+		matchInputWithPreset();
+		customKeptChars = keptCharsInput.value;
 		localStorage.setItem("MiniFont_keptChars", keptCharsInput.value);
 		updateCharDisplay();
 		clearTimeout(debounceTimer);
