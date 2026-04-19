@@ -25,19 +25,21 @@ Typr.Writer = (function() {
 		
 		// Add dependencies (composite glyphs)
 		// We need to iterate until no new glyphs are added
-		var ptr = 0;
-		while(ptr < glyphs.length) {
-			var gid = glyphs[ptr++];
-			var gl = font.glyf[gid];
-			if(!gl && Typr.T.glyf._parseGlyf) gl = font.glyf[gid] = Typr.T.glyf._parseGlyf(font, gid);
-			
-			if(!gl || !gl.parts) continue;
+		if (font.glyf) {
+			var ptr = 0;
+			while(ptr < glyphs.length) {
+				var gid = glyphs[ptr++];
+				var gl = font.glyf[gid];
+				if(!gl && Typr.T.glyf._parseGlyf) gl = font.glyf[gid] = Typr.T.glyf._parseGlyf(font, gid);
+				
+				if(!gl || !gl.parts) continue;
 
-			for(var i=0; i<gl.parts.length; i++) {
-				var compGid = gl.parts[i].glyphIndex;
-				if(old2new[compGid] == null) {
-					old2new[compGid] = glyphs.length;
-					glyphs.push(compGid);
+				for(var i=0; i<gl.parts.length; i++) {
+					var compGid = gl.parts[i].glyphIndex;
+					if(old2new[compGid] == null) {
+						old2new[compGid] = glyphs.length;
+						glyphs.push(compGid);
+					}
 				}
 			}
 		}
@@ -62,7 +64,7 @@ Typr.Writer = (function() {
 		tables.name = copyTable(font, "name");
 		
 		// Hinting tables - Copy if they exist to preserve hinting
-		var hintingTables = ["cvt ", "fpgm", "prep", "gasp"];
+		var hintingTables = ["cvt ", "fpgm", "prep", "gasp", "CFF ", "CFF2", "VORG"];
 		for(var i=0; i<hintingTables.length; i++) {
 			var t = copyTable(font, hintingTables[i]);
 			if(t) tables[hintingTables[i]] = t;
@@ -75,13 +77,15 @@ Typr.Writer = (function() {
 		tables.hmtx = createHmtx(font, glyphs);
 		
 		// Glyf & Loca
-		var glResult = createGlyf(font, glyphs, old2new);
-		tables.glyf = glResult.glyf;
-		tables.loca = glResult.loca;
-		if(glResult.isLongLoca) {
-			tables.head.setUint16(50, 1); // indexToLocFormat = 1 (long)
-		} else {
-			tables.head.setUint16(50, 0); // indexToLocFormat = 0 (short)
+		if (font.glyf) {
+			var glResult = createGlyf(font, glyphs, old2new);
+			tables.glyf = glResult.glyf;
+			tables.loca = glResult.loca;
+			if(glResult.isLongLoca) {
+				tables.head.setUint16(50, 1); // indexToLocFormat = 1 (long)
+			} else {
+				tables.head.setUint16(50, 0); // indexToLocFormat = 0 (short)
+			}
 		}
 		
 		// Cmap
@@ -498,7 +502,8 @@ Typr.Writer = (function() {
 		var view = new DataView(buf);
 		
 		// Header
-		view.setUint32(0, 0x00010000); // Version 1.0
+		var isCFF = tables["CFF "] != null || tables["CFF2"] != null;
+		view.setUint32(0, isCFF ? 0x4F54544F : 0x00010000); // OTTO or \x00\x01\x00\x00
 		view.setUint16(4, numTables);
 		
 		var searchRange = 16 * Math.pow(2, Math.floor(Math.log(numTables)/Math.log(2)));
