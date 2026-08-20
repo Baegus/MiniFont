@@ -176,6 +176,51 @@
 			border-color: var(--primary);
 		}
 
+		.input-highlight-wrap {
+			position: relative;
+			background: var(--bg);
+			min-height: 120px;
+		}
+
+		.input-highlight-wrap textarea {
+			display: block;
+			position: relative;
+			z-index: 1;
+			background: transparent;
+			color: transparent;
+			-webkit-text-fill-color: transparent;
+			caret-color: var(--text);
+			margin-bottom: 5px;
+		}
+
+		.input-highlight-wrap textarea::selection {
+			color: transparent;
+			-webkit-text-fill-color: transparent;
+			background: rgba(255, 255, 255, 0.25);
+		}
+
+		.input-highlight {
+			position: absolute;
+			inset: 0;
+			border: 1px solid transparent;
+			color: var(--text);
+			font-family: monospace;
+			font-size: 1rem;
+			min-height: 120px;
+			padding: 12px;
+			overflow: hidden;
+			white-space: pre-wrap;
+			word-break: break-all;
+			pointer-events: none;
+		}
+
+		.char-unavailable {
+			color: var(--error-fg-bright);
+			background: rgba(141, 44, 44, 0.65);
+			text-decoration: underline wavy;
+			text-decoration-thickness: 1px;
+		}
+
 		.char-removed {
 			color: var(--error-fg-bright);
 			opacity: 0.7;
@@ -368,13 +413,16 @@
 	<!-- Configuration Section -->
 	<div class="card" id="configCard" style="opacity: 0.5; pointer-events: none;">
 		<div class="presetLabelWrap">
-			<label for="keptCharsInput" style="margin-bottom: 0;">Characters to keep</label>
+			<label for="keptCharsInput" style="margin-bottom: 0;">Characters to keep (Red = Unavailable)</label>
 			<select id="presetSelect">
 				<option value="">No preset</option>
 				<option value="allCharacters">Keep all characters</option>
 			</select>
 		</div>
-		<textarea id="keptCharsInput" spellcheck="false"></textarea>
+		<div class="input-highlight-wrap">
+			<div id="keptCharsHighlight" class="input-highlight" aria-hidden="true"></div>
+			<textarea id="keptCharsInput" spellcheck="false"></textarea>
+		</div>
 
 		<label for="allCharsOutput">Available characters in the loaded font (Red = Removed)</label>
 		<div id="allCharsOutput" class="textarea-like" tabindex="0">Load a font to see available characters...</div>
@@ -443,6 +491,7 @@
 	const dropText = getID("dropText");
 	const configCard = getID("configCard");
 	const keptCharsInput = getID("keptCharsInput");
+	const keptCharsHighlight = getID("keptCharsHighlight");
 	const allCharsOutput = getID("allCharsOutput");
 	const formatSelect = getID("formatSelect");
 	const downloadBtn = getID("downloadBtn");
@@ -611,6 +660,8 @@
 		debounceTimer = setTimeout(processFont, 100);
 	});
 
+	keptCharsInput.addEventListener("scroll", syncInputHighlightScroll);
+
 	presetSelect.addEventListener("change", () => {
 		const currentPreset = presetSelect.value;
 		
@@ -717,11 +768,13 @@
 				await fontFace.load();
 				document.fonts.add(fontFace);
 				keptCharsInput.style.fontFamily
+					= keptCharsHighlight.style.fontFamily
 					= allCharsOutput.style.fontFamily
 					= `"${fontName}", monospace`;
 			} catch (e) {
 				console.warn("Failed to load font for preview:", e);
 				keptCharsInput.style.fontFamily
+					= keptCharsHighlight.style.fontFamily
 					= allCharsOutput.style.fontFamily
 					= `monospace`;
 			}
@@ -1209,6 +1262,15 @@
 		
 		const keptChars = keptCharsInput.value;
 		const keptSet = new Set(keptChars);
+		const availableSet = new Set(currentAllChars);
+		const highlightedInput = Array.from(keptChars, char => {
+			if (char === "\n" || char === "\r" || char === "\t") return escapeHtml(char);
+			const className = availableSet.has(char) ? "" : "char-unavailable";
+			return `<span class="${className}">${escapeHtml(char)}</span>`;
+		}).join("");
+
+		keptCharsHighlight.innerHTML = highlightedInput + (keptChars.endsWith("\n") ? "\n" : "");
+		syncInputHighlightScroll();
 
 		const html = currentAllChars.map(char => {
 			const codePoint = char.codePointAt(0);
@@ -1220,6 +1282,11 @@
 			return `<span class="${className}" title="${title}">${escapeHtml(char)}</span>`;
 		}).join("");
 		allCharsOutput.innerHTML = html;
+	}
+
+	function syncInputHighlightScroll() {
+		keptCharsHighlight.scrollTop = keptCharsInput.scrollTop;
+		keptCharsHighlight.scrollLeft = keptCharsInput.scrollLeft;
 	}
 
 	function escapeHtml(text) {
